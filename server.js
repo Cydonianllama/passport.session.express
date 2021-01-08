@@ -6,24 +6,9 @@ const connection = mysql.createConnection({
     host: 'localhost',
     user: 'root',
     password: '',
-    database: 'onlyuser'
+    database: 'onlyuser',
+
 })
-
-//the main middleware for the session
-const session = require('express-session')
-//save the session in my database
-var MySQLStore = require('express-mysql-session')(session);
-//configure my store for session configurarion
-var sessionStore = new MySQLStore({}/* session store options */, connection);
-
-const bcrypt = require('bcrypt')
-const jwt = require('jsonwebtoken')
-
-const PORT = process.env.PORT || 5000
-const SALT_ = 10
-
-app.use(express.json())
-app.use(express.urlencoded({ extended: false }))
 
 // requerimients for auth a authz
 const passport = require('passport')
@@ -34,12 +19,35 @@ var secret_A = 'myspecialsecret'
 //para obtension de tokens del cliente
 app.use(cookieParser(secret_A))
 
+//the main middleware for the session
+const session = require('express-session')
+//save the session in my database
+var MySQLStore = require('express-mysql-session')(session);
+//configure my store for session configurarion
+var sessionStore = new MySQLStore({
+    // expiration : 100000,
+    // checkExpirationInterval : 100000,
+
+},connection);
+
+const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
+
+const PORT = process.env.PORT || 5000
+const SALT_ = 10
+
+app.use(express.json())
+app.use(express.urlencoded({ extended: false }))
+
 //express - session
 app.use(session({
     secret : secret_A,
     resave : true,
     saveUninitialized : true,
-    store : sessionStore
+    store : sessionStore,
+    cookie : {
+        maxAge : 100000,
+    }
 }))
 
 //passport middlewares
@@ -137,14 +145,6 @@ const logout = (req,res) => {
     res.send({signout : true})
 }
 
-const protectedRoute1 = (req,res) => {
-
-}
-
-const protectedRoute2 = (req,res) => {
-
-}
-
 //this route accepts a body with username - password
 app.post('/signinNormal',login)
 app.post('/signoutNormal',logout)
@@ -156,30 +156,40 @@ app.post('/signin?:username?:password', passport.authenticate('local', { failure
     function (req, res) {
         res.send(req.user)
 })
+app.get('/signin?:username?:password', passport.authenticate('local', { failureRedirect: '/login' }),
+    function (req, res) {
+        res.send(req.user)
+    })
 app.post('/signout',(req,res)=>{
     req.logOut()
     res.send({hola : 'yes'})
 })
+
+app.get('/logout', (req, res) => {
+    req.logOut()
+    res.send({msg: 'your signout to your account' })
+})
+
 // app.post('/register')
 
-app.post('/protect/route1',(req,res,next)=>{
-    console.log('cookie',req.cookies)
-    console.log('isAuth',req.isAuthenticated())
-    console.log('hola : ',req.user)
-    console.log('session : ',req.session)
-    res.send({ res: 'hola'})
-    res.end()
+app.post('/aroute',async (req,res) => {
+    res.send({session : req.user , header : req.headers})
 })
 
-app.post('/protect/route2',(req,res,next)=>{
-    res.send(req.user)
+app.get('/route1',(req,res)=>{
+    if (req.isAuthenticated()){
+        res.send({mesage : 'hello'})
+    }else{
+        res.send({msg : 'get out of my view'})
+    }
 })
+
 // 
 app.get('/',(req,res)=>{
     res.send({response : 'hola'})
 })
 app.get('/login',(req,res)=>{
-    res.send({page : 'sopa do macaco, hay un error'})
+    res.send({page : 'sopa de macaco, estas en login'})
 })
 
 app.listen(PORT,(err)=>{
